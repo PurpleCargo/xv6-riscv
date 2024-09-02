@@ -102,6 +102,16 @@ allocpid()
   return pid;
 }
 
+uint64
+sys_getppid(void)
+{
+  struct proc *p = myproc();
+  if (p->parent) {
+    return p->parent->pid;
+  }
+  return 0;
+}
+
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
