@@ -1,155 +1,119 @@
-# Informe Tarea 0 - Sistemas Operativos, Sec. 1
+# Informe Tarea 1 - Sistemas Operativos, Sec. 1
 ### Nombre: Eduardo Torres Lagos
 ### Sistema: Windows 11, WSL2, Ubuntu 22.04.3 LTS
 
-## Pasos de instalación
+## Funcionamiento de las llamadas al sistema
 
-1. Crear fork del repositorio xv6-riscv y clonarlo en /home/
-
-
-	`git clone https://github.com/PurpleCargo/xv6-riscv.git`
-
-
-2. Clonar repositorio riscv-gnu-toolchain en /home/ y navegar al directorio del toolchain
-
-
-	`git clone https://github.com/riscv/riscv-gnu-toolchain && cd riscv-gnu-toolchain`
-
-
-3. Ejecutar el comando de instalación de dependencias que aparece en el readme del repositorio del toolchain
+1. getppid()
 
 
 	```
-	sudo apt-get install autoconf automake autotools-dev curl python3 python3-pip libmpc-dev libmpfr-dev
-	libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
-	ninja-build git cmake libglib2.0-dev libslirp-dev
+	struct proc *p = myproc();
+	if (p->parent) {
+		return p->parent->pid;
+	}
+	return 0;
 	```
 
-
-3.1 Ejecutar el siguiente comando antes del anterior si es que hace falta:
-
-
-	`sudo apt-get update`
+La función recupera el proceso actual myproc(), luego accede al proceso padre y retorna el id del proceso padre.
 
 
-4. Ejecutar el comando de configuración para instalar en /home/riscv
-
-
-	`./configure --prefix=$HOME/riscv`
-
-
-5. Ejecutar comando de compilación/build, agrego -j4 para acelerar un poco la instalación, pero es opcional
-
-
-	`make -j4`
-
-
-6. Actualizar path con el toolchain (el segundo comando es opcional si no me equivoco, dado que vuelve el cambio
-de path permanente para no tener que ejecutarlo entre sesiones de terminal y reboots)
+2. getancestor()
 
 
 	```
-	export PATH=$HOME/riscv/bin:$PATH
-	source ~/.bashrc
+	int gen;
+  	argint(0, &gen);
+
+  	if (gen < 0) {
+    		return -1;
+  	}
+
+  	struct proc *p = myproc();
+
+  	for (int i = 0; i < gen; i++) {
+    		if (p->parent == 0) {
+      			return -1;
+    		}
+    		p = p->parent;
+  	}
+
+  	return p->pid;
 	```
 
 
-7. Instalación de QEMU
+Esta función utiliza la función argint para recuperar el valor de input asignado a la variable gen, luego evalua si
+gen es un valor inválido de generación en el árbol de procesos. Luego declara un puntero a myproc() para utilizarlo
+en el for que itera por cada generación de procesos, retornando -1 cuando no hay más ancestros. Finalmente la función
+retorna el id del proceso del ancestro.
 
 
-7.1 Clonar repositorio de QEMU en /home/ y navegar al directorio qemu
+## Explicación de las modificaciones realizadas
+
+1. user.h
+
+Aquí agregué las declaraciones de las funciones getppid y getancestor.
 
 
-	```
-	git clone https://github.com/qemu/qemu.git
-	cd qemu
-	```
+2. proc.c
+
+Aquí agregué la implementación de las funciones getppid y getancestor.
 
 
-7.2 Configurar la instalación de QEMU para riscv
+3. syscall.h
+
+Aquí agregué las definiciones de las funciones getppid y getancestor.
 
 
-	`./configure --target-list=riscv64-softmmu`
+4. syscall.c
+
+Aquí establecí el mapping de las funciones getppid y getancestor.
 
 
-7.2.1 En caso de que haga falta, instalar tomli
+5. usys.pl
+
+Aquí agregué las llamadas de sistema creadas para que se incluya la referencia al generar el archivo usys.S
+utilizando este script, o al menos eso entendí.
 
 
-	`pip install tomli`
+6. Makefile
 
-
-7.3 Ejecutar los siguientes comandos
-
-
-	```
-	make
-	sudo make install
-	```
-
-
-8. Ahora toca navegar al directorio xv6-riscv
-
-
-	`cd -- && cd xv6-riscv`
-
-
-Editar el Makefile para añadir la siguiente línea:
-
-
-	`QEMUOPTS += -display none -serial mon:stdio`
-
-
-Con el fin de asegurarse que todo el output sea dirigido al terminal
-
-
-9. Ejecutar los siguientes comandos para terminar la instalación
+Aquí agregué el programa de prueba 'yosoytupadre.c' a UPROGS y una regla de compilación para el programa
 
 
 	```
-	make
-	make qemu
+	$U/_yosoytupadre: $U/yosoytupadre.o $(ULIB)
+    	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_yosoytupadre $U/yosoytupadre.o $(ULIB)
+    	$(OBJDUMP) -S $U/_yosoytupadre > $U/yosoytupadre.asm
 	```
 
 
-9.1 En caso de que haga falta por x razón, ejecutar make clean antes de make
-
-
-	`make clean`
+para asegurarme de que se compile correctamente. Esta regla enlaza los object files y crea un ejecutable, y objdump
+desmonta el binary generado en código assembly con fines de debugging
 
 
 ## Problemas encontrados
-1. El mayor problema que tuve francamente fue con QEMU, dado que probé tres versiones distintas de instalación:
+
+1. El primer error que tuve fue que cuando estaba realizando las modificaciones para implementar getppid, había
+una disparidad por así decirlo de tipos, dado que estaba utilizando int en lugar de uint64, y según entendí xv6
+tiende a utilizar el tipo uint64, por lo que al cambiar los int por uint64 se resolvió el problema.
+
+2. El segundo error, probablemente el mayor que tuve, fue que al compilar xv6 me saltaba el error de 
+undefined reference to getppid, y esto se debía a que no había modificado el archivo usys.S, y cuando lo modificaba
+e intentaba compilar otra vez, seguía teniendo el mismo error. Luego de estudiar un poco la estructura de los
+archivos de xv6 noté que había un archivo llamado usys.pl el cual generaba el archivo usys.S al compilar, por lo que
+al implementar la línea
 
 
-	`sudo apt-get install qemu`
+	`entry("getppid")`
 
 
-Esta instalación si no me equivoco me resultaba en que make qemu efectivamente se ejecutaba, pero no aparecía la
-interfaz en la terminal. La solución que intenté después de esto fue instalar otra versión de qemu que fuera
-compatible con riscv.
+se resolvió el problema de referencia, y xv6 pudo compilar correctamente.
 
+3. El siguiente problema lo noté tras ejecutar xv6 usando make qemu. Al parecer el executable de yosoytupadre.c
+fallaba, y el problema estaba en que me faltaba una regla de compilación para el programa de prueba (la cual está
+más arriba), por lo que al agregar esta regla en el Makefile abajo de la regla de forktest se solucionó.
 
-	`sudo apt-get install qemu-system-misc`
-
-
-Esta instalación me llevo al mismo problema en el paso de make qemu (aunque en ambas ocasiones no utilicé los mismos
-pasos que mencioné más arriba en el documento, dado que para esta segunda instalación empecé de 0 esencialmente)
-
-
-La solución que me resolvió el problema fue primero desinstalar ambas versiones de qemu y eliminar cualquier archivo
-residual, seguido de compilar qemu como explico en los pasos de instalación.
-
-
-2. Más que un problema esto esencialmente me pasó por intentar llegar con todo listo a la clase donde tuvimos el
-laboratorio de xv6, dado que tuve que eliminar todo el progreso que llevaba (hasta el punto de make qemu sin
-interfaz) para seguir los pasos en clase, con el tema de github y todo eso.
-
-
-2.1 Además de eso, hubo un punto entre la primera y segunda instalación de qemu donde intenté instalar el toolchain
-en /opt/ el cual requiere permisos para escribir, por lo que tuve que borrar la compilación del toolchain e
-instalarlo de nuevo en /home/.
-
-
-### Evidencia de que xv6 funciona correctamente
-En el buzón de entrega de webcursos adjunto capturas de los comandos ls, echo y cat de acuerdo a las instrucciones
-de la tarea 0
+4. Cuando estaba implementando la función getancestor en proc.c, al compilar tenía un problema relacionado a la
+función argint, dado que me estaba retornando void en lugar del int que pudiera evaluarse con 0, por lo que en vez
+de intentar evaluar el valor retornado llamé a la función directamente, lo que resolvió este problema.

@@ -112,6 +112,29 @@ sys_getppid(void)
   return 0;
 }
 
+// getancestor function, traverses the process tree iteratively
+uint64
+sys_getancestor(void)
+{
+  int gen;
+  argint(0, &gen);
+
+  if (gen < 0) {
+    return -1;
+  }
+
+  struct proc *p = myproc();
+
+  for (int i = 0; i < gen; i++) {
+    if (p->parent == 0) {
+      return -1;
+    }
+    p = p->parent;
+  }
+
+  return p->pid;
+}
+
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
@@ -443,6 +466,26 @@ wait(uint64 addr)
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
 }
+
+// attempt - unused
+/*
+void
+get_older_process(void)
+{  
+  struct proc* r; {
+    int arrival_time;
+
+  };
+
+  
+
+  acquire(&tickslock);
+  proc->arrival_time = ticks;
+  release(&tickslock);
+
+  return r;
+}
+*/
 
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
