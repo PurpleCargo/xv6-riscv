@@ -157,6 +157,9 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  // modificaciones tarea 2
+  p->priority = 0; // init priority to 0
+  p->boost = 1; // init boost to 1
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -472,18 +475,25 @@ wait(uint64 addr)
 void
 get_older_process(void)
 {  
-  struct proc* r; {
-    int arrival_time;
 
-  };
+  int total;
+  struct proc* p = myproc();
+  int plist[];
 
+  acquire(&tickslock);
+  for (int i=0; i<total; i++) {
+
+    p->arrival_time = ticks;
+    plist[i] = p->arrival_time;
+  }
+  release(&tickslock);
   
 
   acquire(&tickslock);
   proc->arrival_time = ticks;
   release(&tickslock);
 
-  return r;
+  return plist[0];
 }
 */
 
@@ -508,12 +518,29 @@ scheduler(void)
     intr_on();
 
     int found = 0;
+    // modificaciones tarea 2, codigo original guardado en txt
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
+
+      // Actualizar prioridad y boost si el proceso es RUNNABLE
       if(p->state == RUNNABLE) {
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+
+        // incrementar prioridad utilizando boost
+        p->priority += p->boost;
+
+        // ajustar direccion de boost basado en limites de prioridad
+        if(p->priority >= 9) {
+          p->priority = 9;
+          p->boost = -1; // invertir boost para disminuir prioridad
+        } else if(p->priority <= 0) {
+          p->priority = 0;
+          p->boost = 1; // invertir boost para aumentar prioridad
+        }
+
+
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);

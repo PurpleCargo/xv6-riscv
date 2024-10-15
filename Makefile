@@ -117,6 +117,10 @@ $U/_yosoytupadre: $U/yosoytupadre.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_yosoytupadre $U/yosoytupadre.o $(ULIB)
 	$(OBJDUMP) -S $U/_yosoytupadre > $U/yosoytupadre.asm
 
+$U/_prio_test: $U/prio_test.o $(ULIB)
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_prio_test $U/prio_test.o $(ULIB)
+	$(OBJDUMP) -S $U/_prio_test > $U/prio_test.asm
+
 mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
@@ -144,6 +148,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_yosoytupadre\
+	$U/_prio_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
@@ -165,7 +170,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 3
+CPUS := 1
 endif
 
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic

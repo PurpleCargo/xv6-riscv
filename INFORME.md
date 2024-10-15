@@ -2,6 +2,9 @@
 ### Nombre: Eduardo Torres Lagos
 ### Sistema: Windows 11, WSL2, Ubuntu 22.04.3 LTS
 
+
+## Ignorar este archivo, corresponde a tarea 1
+
 ## Funcionamiento de las llamadas al sistema
 
 1. getppid()
