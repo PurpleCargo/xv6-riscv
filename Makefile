@@ -67,7 +67,7 @@ CFLAGS += -fno-builtin-strchr -fno-builtin-exit -fno-builtin-malloc -fno-builtin
 CFLAGS += -fno-builtin-free
 CFLAGS += -fno-builtin-memcpy -Wno-main
 CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
-CFLAGS += -I.
+CFLAGS += -I. -I../kernel
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
@@ -121,6 +121,10 @@ $U/_prio_test: $U/prio_test.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_prio_test $U/prio_test.o $(ULIB)
 	$(OBJDUMP) -S $U/_prio_test > $U/prio_test.asm
 
+$U/_mprot_test: $U/mprot_test.o $(ULIB)
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_mprot_test $U/mprot_test.o $(ULIB)
+	$(OBJDUMP) -S $U/_mprot_test > $U/mprot_test.asm
+
 mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
@@ -149,6 +153,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_yosoytupadre\
 	$U/_prio_test\
+	$U/_mprot_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

@@ -24,6 +24,8 @@ int sleep(int);
 int uptime(void);
 int getppid(void);
 int getancestor(int gen);
+int mprotect(void *addr, int len);
+int munprotect(void *addr, int len);
 
 // ulib.c
 int stat(const char*, struct stat*);

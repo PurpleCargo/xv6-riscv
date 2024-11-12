@@ -251,6 +251,71 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmfree(pagetable, sz);
 }
 
+// helper functions for mprotect and munprotect
+static int set_page_readonly(pagetable_t pagetable, uint64 va) {
+  pte_t *pte = walk(pagetable, va, 0);
+    if (pte == 0) {
+      printf("Error: page not mapped at address %p\n", (void*)va);
+      return -1; // Error: page not mapped
+    }
+    
+    *pte &= ~PTE_W; // clear the write bit
+  return 0;
+}
+
+static int set_page_writable(pagetable_t pagetable, uint64 va) {
+  pte_t *pte = walk(pagetable, va, 0);
+    if (pte == 0) {
+      printf("Error: page not mapped at address %p\n", (void*)va);
+      return -1; // Error: page not mapped
+    }
+
+    *pte |= PTE_W; // set the write bit
+  return 0;
+}
+
+uint64
+sys_mprotect(void *addr, int len) {
+  if ((uint64)addr % PGSIZE != 0 || len <= 0)
+    return -1; // Error: address not page-aligned or invalid length
+
+  struct proc *p = myproc();
+  uint64 end = (uint64)addr + len;
+
+  if (end > p->sz)
+    return -1; // Error: address range exceeds process memory
+
+  for (uint64 a = (uint64)addr; a < end; a += PGSIZE) {
+    if (set_page_readonly(p->pagetable, a) == -1) {
+      return -1;
+    }
+  }
+
+  sfence_vma(); // flush tlb if necessary
+  return 0;
+}
+
+uint64
+sys_munprotect(void *addr, int len) {
+  if ((uint64)addr % PGSIZE != 0 || len <= 0)
+    return -1; // Error: address not page-aligned or invalid length
+
+  struct proc *p = myproc();
+  uint64 end = (uint64)addr + len;
+
+  if (end > p->sz)
+    return -1; // Error: address range exceeds process memory
+
+  for (uint64 a = (uint64)addr; a < end; a += PGSIZE) {
+    if (set_page_writable(p->pagetable, a) == -1) {
+      return -1;
+    }
+  }
+
+  sfence_vma(); // flush tlb if necessary
+  return 0;
+}
+
 // a user program that calls exec("/init")
 // assembled from ../user/initcode.S
 // od -t xC ../user/initcode

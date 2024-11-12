@@ -1,87 +1,52 @@
-# Informe Tarea 2 - Sistemas Operativos, Sec. 1
+# Informe Tarea 3 - Sistemas Operativos, Sec. 1
 ### Nombre: Eduardo Torres Lagos
 ### Sistema: Windows 11, WSL2, Ubuntu 22.04.3 LTS
 
 ## Ignorar archivo INFORME.md, corresponde a tarea 1
 
-## Sistema de prioridades
+## Funcionamiento y lógica de la protección de memoria
 
-El sistema de prioridades consiste de 2 elementos, prioridad y boost. Estos elementos se deben incluir dentro
-de la estructura del proceso e inicializar en la función allocproc con los valores 0 y 1 respectivamente.
+La protección de la memoria en los OS controla el acceso a diferentes regiones de la memoria de un proceso, evitando lecturas o escrituras no
+deseadas, esto se hace mediante tablas de páginas, que asignan direcciones de memoria virtual a direcciones de memoria física.
 
-Dentro de la función scheduler de xv6 normalmente hay una condición para verificar si un proceso es
-ejecutable, y al cumplirse esta condición, el valor de la prioridad aumenta en función al valor del
-boost, es decir, prioridad += boost. Adicionalmente el sistema de prioridades evalúa 2 condiciones:
+Cada entrada de la tabla de página (PTE) incluye flags para especificar permisos de acceso:
 
-1) Si la prioridad alcanza el valor 9, se cambia el valor del boost a -1 (esto con el fin de reducir
-la prioridad)
-
-2) Si la prioridad alcanza el valor 0, se cambia el valor del boost a 1 (esto con el fin de aumentar
-la prioridad)
+Read (R) para permitir lectura en la region de memoria
+Write (W) para permitir escritura
+Execute (X) para ejecutar código en esa region
 
 ## Modificaciones realizadas
 
-Siguiendo un poco la sección anterior, las modificaciones realizadas para esta entrega son las siguientes:
+En total agregué 4 funciones a proc.c para implementar las modificaciones requeridas:
 
-1) Agregar los campos "priority" y "boost" dentro de la estructura del proceso definido en proc.h, para poder
-utilizarlos en el scheduler.
+sys_mprotect: 
 
-2) Inicializar los campos anteriores en la función allocproc en proc.c, dado que esta función se encarga de
-asignar un proceso nuevo
+Esta función itera por cada página en la región especificada por addr y len, y luego limpia el bit PTE_W en cada PTE para volverlo solo lectura.
 
-3) En la función scheduler (en proc.c), dentro de la condición que evalúa si los procesos son ejecutables, agregar
-las siguientes líneas:
+sys_munprotect:
 
-    ```
-    p->priority += p->boost;
+Esta función itera por la misma región, pero configura (set) el bit PTE_W en cada PTE para que se pueda escribir nuevamente
 
-        
-    if(p->priority >= 9) {
-        p->priority = 9;
-        p->boost = -1; // invertir boost para disminuir prioridad
-    } else if(p->priority <= 0) {
-        p->priority = 0;
-        p->boost = 1; // invertir boost para aumentar prioridad
-    }
-    ```
+En general estas funciones se aseguran de que addr esté alineado al límite de la páginan, sino retorna un error. Verifican que la region
+addr, addr + len esté dentro de la region de memoria válida del proceso.
 
-La primera línea incrementa el atributo de prioridad del proceso en función del valor del boost.
-Las condiciones abajo se explican en la sección anterior, pero esencialmente se encargan de mantener
-los valores de la prioridad de un proceso entre 0 y 9.
+Y en cuanto a la iteración de páginas:
 
-4) Dentro del archivo Makefile, agregar las reglas de compilación para el archivo de prueba prio_test,
-y modificar la cantidad de CPUs que utliza xv6 de 3 a 1 (esto va en relación al output del programa de prueba)
+encuentran el PTE utilizando la función walk(proc->pagetable, addr, 0), si walk retorna 0, la página no existe, por lo que retorna un error.
+Borra el bit PTE_W para que la página sea de solo lectura y luego usa sfence_vma si es necesario para actualizar las entradas TLB
 
-No incluyo una explicación del programa de prueba dado que no lo considero una modificación a xv6 como tal.
+set_page_readonly y set_page_writable:
+estas funciones auxiliares encapsulan la lógica de permisos para cada página
 
 ## Dificultades encontradas
 
-1) Dificultad menor: los nombres de programas no pueden tener más de 14 carácteres en xv6, por lo que
-tuve que modificar el nombre del programa de prueba de priority_boost_test a prio_test
+Tuve problemas con la implementación del programa de prueba, dado que los headers types.h y stat.h me tiraban error al compilar, asumo que porque se ubican en el kernel
+y no en el directorio user, por lo que modifiqué el Makefile para que busque los headers en el kernel también
 
-2) Dificultad mayor: dentro del programa de prueba se debía imprimir en pantalla el numero del proceso
-junto a su pid, pero originalmente el output del programa resultaba en carácteres desordenados, esto se debe
-a que múltiples procesos tenían acceso a CPU y por lo tanto se interrumpía el orden de ejecución. La primera mitigación
-a este problema fue disminuir la cantidad de CPUs que utilizaba xv6 de 3 a 1, pero esto aún resulta en la interrupción
-de un proceso.
+CFLAGS += -I. -I../kernel
 
-Las mejores soluciones que encontré al respecto fueron:
+pero no funcionó, por lo que tuve que agregar el path directamente en el programa de prueba para lidiar con eso.
 
-a) incluir un sleep entre llamadas de fork() dentro del for loop
-en el programa de prueba (un valor de 1 arregla el problema). 
-
-b) agregar un lock dentro de la función printf dentro del loop, asegurando que no se interrumpa el proceso.
-
-c) aumentar el time slice en el scheduler.
-
-d) modificar el programa de prueba para agregar un buffer antes de imprimir cada string, con el fin de que toda la data
-esté lista al momento de ser impresa, reduciendo la probabilidad de interrupciones.
-
-e) modificar el valor del sleep dentro del for loop (pero esta opción no varió mucho los outputs en comparación
-al valor inicial, esencialmente reducir el valor movía la interrupción un poco más arriba, y aumentarlo la movía
-un poco hacia abajo, probé hasta el valor 200, y no hubo mucha diferencia).
-
-Decidí no incluir ninguna de estas opciones en la entrega; las primeras 2 las discutí con el profesor en clases
-y me recomendó no incluirlas, la opción c considero que estaba fuera del scope de la tarea y la opción d no
-logré compilarla correctamente, por lo que la descarté, en cualquier caso dejé comentada la modificación del sleep
-en el programa de prueba.
+La otra dificultad que encontré es que tuve un output incorrecto al ejecutar el programa (xv6 se compila bien, el programa de pruebas se compila
+y ejecuta, pero el output muestra que ambas llamadas de sistema fallan). No fui capaz de solucionar este problema pero es probable
+que se relacione a la lógica de implementación de estas funciones.
