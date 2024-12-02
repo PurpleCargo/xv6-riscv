@@ -27,6 +27,7 @@ struct inode {
   short nlink;
   uint size;
   uint addrs[NDIRECT+1];
+  uint permissions; // 0 no access, 1 read-only, 2 write-only, 3 read/write, 5 immutable
 };
 
 // map major device number to device functions.

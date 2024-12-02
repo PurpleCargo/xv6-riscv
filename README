@@ -1,52 +1,95 @@
-# Informe Tarea 3 - Sistemas Operativos, Sec. 1
+# Informe Tarea 4 - Sistemas Operativos, Sec. 1
 ### Nombre: Eduardo Torres Lagos
 ### Sistema: Windows 11, WSL2, Ubuntu 22.04.3 LTS
 
 ## Ignorar archivo INFORME.md, corresponde a tarea 1
 
-## Funcionamiento y lógica de la protección de memoria
+## Funcionamiento y lógica
 
-La protección de la memoria en los OS controla el acceso a diferentes regiones de la memoria de un proceso, evitando lecturas o escrituras no
-deseadas, esto se hace mediante tablas de páginas, que asignan direcciones de memoria virtual a direcciones de memoria física.
+El campo de permisos de la estructura del inodo se usa para gestionar el control de acceso y la inmutabilidad de archivos. Este permite:
 
-Cada entrada de la tabla de página (PTE) incluye flags para especificar permisos de acceso:
+Permisos R/W:
 
-Read (R) para permitir lectura en la region de memoria
-Write (W) para permitir escritura
-Execute (X) para ejecutar código en esa region
+    0: No permisos de escritura o lectura
+    1: Solo lectura
+    2: Solo escritura
+    3: Escritura y lectura (predeterminado para archivos nuevos)
+
+Comportamiento de archivos inmutables:
+
+    5: Marcar el archivo como inmutable, evitando cualquier cambio adicional en sus contenidos o metadata
+
+chmod
+
+Esta llamada de sistema provee una interface para que los programas de usuario modifiquen los permisos de un archivo. Realiza las siguientes tareas:
+
+Validación de argumentos:
+
+    Garantiza que el path del archivo y el modo de permiso sean válidos
+    Restringe modos inválidos (mode < 0, mode > 3, y modos distintos de 5)
+
+Cambios de lógica de permiso:
+
+    Evita la modificación de archivos inmutables (permissions == 5)
+    Actualiza el campo de permisos del inodo respectivo
+
+Sincronización
+
+    Garantiza que los cambios en el campo de permisos del inodo se escriban en el disco mediante iupdate()
 
 ## Modificaciones realizadas
 
-En total agregué 4 funciones a proc.c para implementar las modificaciones requeridas:
+file.h
 
-sys_mprotect: 
+Adición del campo permissions dentro del struct inode, donde 0 es no acceso, 1 es solo lectura, 2 es solo escritura, 3 es escritura y lectura
+y 5 es inmutable
 
-Esta función itera por cada página en la región especificada por addr y len, y luego limpia el bit PTE_W en cada PTE para volverlo solo lectura.
+fs.c
 
-sys_munprotect:
+    iget()
 
-Esta función itera por la misma región, pero configura (set) el bit PTE_W en cada PTE para que se pueda escribir nuevamente
+Inicialización del campo permissions en 3 cuando un inodo se carga en la memoria
 
-En general estas funciones se aseguran de que addr esté alineado al límite de la páginan, sino retorna un error. Verifican que la region
-addr, addr + len esté dentro de la region de memoria válida del proceso.
+sysfile.c
 
-Y en cuanto a la iteración de páginas:
+    sys_chmod(void)
 
-encuentran el PTE utilizando la función walk(proc->pagetable, addr, 0), si walk retorna 0, la página no existe, por lo que retorna un error.
-Borra el bit PTE_W para que la página sea de solo lectura y luego usa sfence_vma si es necesario para actualizar las entradas TLB
+Adición de nueva llamada de sistema para actualizar los permisos de un archivo en base al campo permissions del inodo respectivo, la lógica
+incluye controles de inmutabilidad y validez
 
-set_page_readonly y set_page_writable:
-estas funciones auxiliares encapsulan la lógica de permisos para cada página
+syscall.h
+
+Asignación de número de llamada de sistema a chmod
+
+syscall.c
+
+Añadición de entrada de chmod en la tabla de syscalls
+
+user.h
+
+Añadición de declaración orientada al usuario para chmod
+
+usys.pl
+
+Añadición de código auxiliar (stub) de llamada de sistema para chmod
+
+chmod_test.c
+
+Programa de prueba para validar la implementación de chmod intentando cambiar los permisos y garantizando que se aplique la inmutabilidad
+
+Makefile
+
+Adición de reglas de compilación para chmod_test y dentro de la lista de UPROGS
+
 
 ## Dificultades encontradas
 
-Tuve problemas con la implementación del programa de prueba, dado que los headers types.h y stat.h me tiraban error al compilar, asumo que porque se ubican en el kernel
-y no en el directorio user, por lo que modifiqué el Makefile para que busque los headers en el kernel también
+Considero que la mayor dificultad que encontré fue no darme cuenta de que la estructura del inodo se encontraba en file.h, por lo que intenté realizar la
+implementación con la estructura del dinode en fs.h, lo cual me trajo un par de problemas, como un problema relacionado a Bsize del dinodo, el cual no supe
+solucionar, pero al encontrar el struct del inodo pude seguir con la implementación sin muchos problemas.
 
-CFLAGS += -I. -I../kernel
+Otra dificultad encontrada fue en relación al programa de prueba, dado que requería de constantes como O_CREATE, que se encontraban en el archivo
+fcntl.h, por lo que lo solucioné incluyendo ese header en el programa de prueba.
 
-pero no funcionó, por lo que tuve que agregar el path directamente en el programa de prueba para lidiar con eso.
-
-La otra dificultad que encontré es que tuve un output incorrecto al ejecutar el programa (xv6 se compila bien, el programa de pruebas se compila
-y ejecuta, pero el output muestra que ambas llamadas de sistema fallan). No fui capaz de solucionar este problema pero es probable
-que se relacione a la lógica de implementación de estas funciones.
+Otras dificultades menores se asociaron con la implementación de la llamada de sistema y el programa de prueba, como ponerle chmodtest de nombre al archivo
+y que no se compilara xv6 dado que las reglas de compilación tenían al programa de prueba como chmod_test, entre otros problemas

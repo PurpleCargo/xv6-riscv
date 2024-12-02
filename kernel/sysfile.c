@@ -333,6 +333,14 @@ sys_open(void)
       end_op();
       return -1;
     }
+
+    if  (ip->permissions == 0 ||
+        (ip->permissions == 1 && (omode & (O_WRONLY | O_RDWR))) ||
+        (ip->permissions == 5 && omode != O_RDONLY)) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
@@ -358,7 +366,8 @@ sys_open(void)
   }
   f->ip = ip;
   f->readable = !(omode & O_WRONLY);
-  f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+  f->writable = ((omode & O_WRONLY) || (omode & O_RDWR)) &&
+                (ip->permissions & 2);
 
   if((omode & O_TRUNC) && ip->type == T_FILE){
     itrunc(ip);
@@ -501,5 +510,48 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_chmod(void) {
+  char path[MAXPATH];
+  int mode;
+
+  // Retrieve arguments
+  if (argstr(0, path, MAXPATH) < 0)
+    return -1;
+
+  if (argint(1, &mode), mode < 0)
+    return -1;
+
+  // Validate the mode: it should be 0 (no permissions), 1 (read-only),
+  // 3 (read-write), or 5 (immutable)
+  if (mode < 0 || (mode > 3 && mode != 5))
+    return -1;
+
+  // Fetch the inode
+  struct inode *ip;
+  begin_op();
+
+  if ((ip = namei(path)) == 0) {
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+
+  // Check if the inode is immutable
+  if (ip->permissions == 5) {
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  // Update permissions
+  ip->permissions = mode;
+  iupdate(ip); // Ensure changes are written to disk
+
+  iunlock(ip);
+  end_op();
   return 0;
 }

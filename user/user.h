@@ -26,6 +26,7 @@ int getppid(void);
 int getancestor(int gen);
 int mprotect(void *addr, int len);
 int munprotect(void *addr, int len);
+int chmod(char *path, int mode);
 
 // ulib.c
 int stat(const char*, struct stat*);

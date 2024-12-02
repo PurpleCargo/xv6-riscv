@@ -125,6 +125,10 @@ $U/_mprot_test: $U/mprot_test.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_mprot_test $U/mprot_test.o $(ULIB)
 	$(OBJDUMP) -S $U/_mprot_test > $U/mprot_test.asm
 
+$U/_chmod_test: $U/chmod_test.o $(ULIB)
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $U/_chmod_test $U/chmod_test.o $(ULIB)
+	$(OBJDUMP) -S $U/_chmod_test > $U/chmod_test.asm
+
 mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
@@ -154,6 +158,7 @@ UPROGS=\
 	$U/_yosoytupadre\
 	$U/_prio_test\
 	$U/_mprot_test\
+	$U/_chmod_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
